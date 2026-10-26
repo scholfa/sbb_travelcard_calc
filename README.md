@@ -2,9 +2,11 @@
 
 A single-page calculator that tells you which Swiss public transport travelcard is cheapest for the way you travel: no travelcard, Halbtax, Halbtax PLUS (1000 / 2000 / 3000) or the GA.
 
+**Live:** https://scholfa.github.io/sbb_travelcard_calc/
+
 ## Use
 
-Open `travelcard-calculator.html` in a browser. There's no build step and nothing to install.
+Open the live page, or open `travelcard-calculator.html` in a browser. There's no build step and nothing to install.
 
 1. Add the trips you make regularly: one-way price, how often, and whether it's a return trip.
 2. Set whether the prices you enter are full fare or half fare, and how many weeks a year you're away.
