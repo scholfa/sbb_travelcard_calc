@@ -1,0 +1,464 @@
+<title>Which Swiss Travelcard?</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: timetable-board feel. Left column = your journeys as departure rows, right column = sticky verdict + ranked options. */
+:root {
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --ink: #15181d;
+  --muted: #5d6573;
+  --line: #d9dde3;
+  --accent: #d0021b;
+  --accent-soft: #fbe6e9;
+  --good: #0f7a4a;
+  --bar: #9aa3b0;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101317; --surface: #1a1e24; --ink: #e9ecf0; --muted: #98a1ae; --line: #2d333c;
+    --accent: #ff4d5e; --accent-soft: #3a1a1f; --good: #3fcf8e; --bar: #5b6472; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101317; --surface: #1a1e24; --ink: #e9ecf0; --muted: #98a1ae; --line: #2d333c;
+  --accent: #ff4d5e; --accent-soft: #3a1a1f; --good: #3fcf8e; --bar: #5b6472; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 28px; }
+header h1 {
+  font-family: var(--display); font-stretch: 78%; font-weight: 800; font-size: clamp(2rem, 5vw, 3.1rem);
+  line-height: 1; margin: 0; letter-spacing: -0.01em; text-wrap: balance;
+}
+header h1 span { color: var(--accent); }
+header p { margin: 10px 0 0; color: var(--muted); max-width: 62ch; }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.panel-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+}
+h2 {
+  font-family: var(--display); font-stretch: 85%; font-weight: 700; font-size: 0.82rem;
+  text-transform: uppercase; letter-spacing: 0.09em; margin: 0; color: var(--muted);
+}
+.hint { font-size: 0.82rem; color: var(--muted); }
+
+/* journeys */
+.trip {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px;
+  padding: 14px 18px; border-bottom: 1px solid var(--line);
+}
+.trip:last-of-type { border-bottom: 0; }
+.trip-name {
+  font: 600 1rem var(--body); color: var(--ink); background: transparent; border: 0; padding: 4px 0;
+  border-bottom: 1px dashed transparent; width: 100%; min-width: 0;
+}
+.trip-name:hover, .trip-name:focus { border-bottom-color: var(--line); outline: none; }
+.trip-total { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.95rem; text-align: right; align-self: center; white-space: nowrap; }
+.trip-total small { display: block; color: var(--muted); font-family: var(--body); font-size: 0.72rem; }
+.trip-fields { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+
+.field { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); }
+.field span { padding: 0 8px; color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+.field input, .field select {
+  font: 500 0.92rem var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); background: transparent;
+  border: 0; padding: 7px 8px; min-width: 0;
+}
+.field input { width: 5.2em; }
+.field input.count { width: 3.2em; }
+.field select { font-family: var(--body); padding-right: 4px; }
+.field:focus-within { border-color: var(--ink); }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.86rem; cursor: pointer; user-select: none; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+.del {
+  margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 0.8rem; cursor: pointer; padding: 6px 4px;
+}
+.del:hover { color: var(--accent); }
+
+.add-row { padding: 14px 18px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  font: 600 0.88rem var(--body); border-radius: 4px; padding: 8px 14px; cursor: pointer;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--surface);
+}
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.btn.ghost:hover { border-color: var(--ink); }
+.empty { padding: 28px 18px; color: var(--muted); text-align: center; }
+
+/* settings */
+.settings { padding: 16px 18px; display: grid; gap: 16px; }
+.setting-row { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.setting-row > label.lbl { font-size: 0.86rem; color: var(--muted); min-width: 9.5em; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button {
+  font: 500 0.84rem var(--body); background: transparent; color: var(--ink); border: 0; padding: 7px 12px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.prices { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.prices .field { justify-content: space-between; }
+.prices .field input { width: 5em; text-align: right; }
+
+/* results */
+.results { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: grid; gap: 16px; }
+.verdict { padding: 20px 20px 18px; border-top: 4px solid var(--accent); border-radius: 6px; }
+.verdict .eyebrow { font-family: var(--display); font-stretch: 85%; font-weight: 700; font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); }
+.verdict .pick { font-family: var(--display); font-stretch: 80%; font-weight: 800; font-size: clamp(1.8rem, 4vw, 2.4rem); line-height: 1.05; margin: 6px 0 4px; text-wrap: balance; }
+.verdict .cost { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.05rem; }
+.verdict .cost b { font-size: 1.5rem; }
+.verdict .why { margin: 10px 0 0; color: var(--muted); font-size: 0.9rem; }
+.verdict .why strong { color: var(--good); }
+
+.ranking { padding: 8px 0; }
+.opt { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 18px; }
+.opt-name { font-weight: 600; font-size: 0.92rem; }
+.opt-name small { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.opt-cost { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.92rem; text-align: right; }
+.opt-bar { grid-column: 1 / -1; height: 8px; background: var(--bg); border-radius: 2px; overflow: hidden; }
+.opt-bar i { display: block; height: 100%; background: var(--bar); border-radius: 2px; transition: width .25s ease; }
+.opt.best .opt-bar i { background: var(--accent); }
+.opt.best .opt-name { color: var(--accent); }
+.opt-detail { grid-column: 1 / -1; font-size: 0.78rem; color: var(--muted); }
+
+.facts { padding: 14px 18px; display: grid; gap: 8px; font-size: 0.88rem; }
+.fact { display: flex; justify-content: space-between; gap: 12px; }
+.fact span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.meter { height: 10px; background: var(--bg); border-radius: 2px; position: relative; margin-top: 4px; overflow: hidden; }
+.meter i { position: absolute; inset: 0 auto 0 0; background: var(--ink); border-radius: 2px; transition: width .25s ease; }
+.meter-label { font-size: 0.78rem; color: var(--muted); }
+
+footer { color: var(--muted); font-size: 0.8rem; max-width: 80ch; }
+footer a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 480px) {
+  .del { margin-left: 0; }
+  .setting-row > label.lbl { min-width: 0; width: 100%; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Which travelcard <span>pays off?</span></h1>
+    <p>Add the trips you make by public transport. The calculator compares paying full fare with the Halbtax, the Halbtax PLUS packages and the GA, and tells you which is cheapest per year.</p>
+  </header>
+
+  <div class="grid">
+    <div style="display:grid; gap:20px; min-width:0">
+      <section class="panel" aria-labelledby="trips-h">
+        <div class="panel-head">
+          <h2 id="trips-h">Your trips</h2>
+          <span class="hint" id="price-hint">Enter the full-fare price of one way</span>
+        </div>
+        <div id="trips"></div>
+        <div class="add-row">
+          <button class="btn" id="add">+ Add trip</button>
+          <button class="btn ghost" id="reset">Load example trips</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="set-h">
+        <div class="panel-head"><h2 id="set-h">Settings</h2></div>
+        <div class="settings">
+          <div class="setting-row">
+            <label class="lbl">Prices I enter are</label>
+            <div class="seg" id="fareMode">
+              <button data-v="full" aria-pressed="true">Full fare</button>
+              <button data-v="half" aria-pressed="false">Half fare</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label class="lbl" for="away">Weeks away per year</label>
+            <div class="field"><input id="away" type="number" min="0" max="52" step="1" value="6"><span>weeks</span></div>
+            <span class="hint">Holidays etc. Applies to weekly and two-weekly trips.</span>
+          </div>
+          <div class="prices">
+            <label class="field"><span>GA</span><input id="pGA" type="number" min="0" step="5"></label>
+            <label class="field"><span>Halbtax</span><input id="pHT" type="number" min="0" step="5"></label>
+          </div>
+          <span class="hint">Adult prices. Overwrite them if you qualify for youth or senior rates.</span>
+          <div class="setting-row">
+            <label class="lbl">Backup</label>
+            <button class="btn ghost" id="export">Export to file</button>
+            <button class="btn ghost" id="import">Import from file</button>
+            <input type="file" id="importFile" accept=".json,application/json" hidden>
+            <span class="hint" id="io-msg" role="status"></span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <aside class="results" aria-live="polite">
+      <section class="panel verdict" id="verdict"></section>
+      <section class="panel">
+        <div class="panel-head"><h2>Cost per year</h2><span class="hint">incl. travelcard</span></div>
+        <div class="ranking" id="ranking"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Your travel</h2></div>
+        <div class="facts" id="facts"></div>
+      </section>
+    </aside>
+  </div>
+
+  <footer>
+    Halbtax PLUS: you pay in an amount and get a bonus once it is used up. Unused paid-in credit is refunded after one year, the bonus expires.
+    The GA covers almost all trains, buses and boats; some mountain railways only give a discount. Prices from
+    <a href="https://www.sbb.ch/de/billette-angebote/kaufen.html" target="_blank" rel="noopener">sbb.ch</a>, checked October 2026. Always confirm before buying.
+  </footer>
+</div>
+
+<script>
+// default prices, overwritten by what the user enters in settings
+const DEFAULT_PRICES = { GA: 3995, HT: 190 };
+// Halbtax PLUS (adult): pay, total credit incl. bonus
+const PLUS = [
+  { name: "Halbtax PLUS 1000", pay: 800, credit: 1000 },
+  { name: "Halbtax PLUS 2000", pay: 1500, credit: 2000 },
+  { name: "Halbtax PLUS 3000", pay: 2100, credit: 3000 },
+];
+const UNITS = { week: "per week", "2weeks": "every 2 weeks", month: "per month", year: "per year" };
+
+const EXAMPLE = [
+  { name: "Visit mom", price: 38, count: 1, unit: "2weeks", round: true },
+  { name: "Commute to work", price: 12.4, count: 4, unit: "week", round: true },
+  { name: "Special trips", price: 60, count: 1, unit: "month", round: true },
+];
+
+const KEY = "sbb-abo-calc-v1";
+let state = load() || {
+  trips: structuredClone(EXAMPLE), fareMode: "full", away: 6,
+  pGA: null, pHT: null, example: true,
+};
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+
+const chf = (n, dec = 0) => "CHF " + n.toLocaleString("de-CH", { minimumFractionDigits: dec, maximumFractionDigits: dec });
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function tripsPerYear(t) {
+  const weeks = Math.max(0, 52 - (+state.away || 0));
+  const periods = { week: weeks, "2weeks": weeks / 2, month: 12, year: 1 }[t.unit] ?? 0;
+  return (+t.count || 0) * periods * (t.round ? 2 : 1);
+}
+// annual spend expressed as full fare
+function tripFullFare(t) {
+  const p = +t.price || 0;
+  return tripsPerYear(t) * (state.fareMode === "half" ? p * 2 : p);
+}
+function prices() {
+  return {
+    GA: state.pGA ?? DEFAULT_PRICES.GA,
+    HT: state.pHT ?? DEFAULT_PRICES.HT,
+  };
+}
+function plusCost(halfSpend, p) {
+  if (halfSpend <= p.pay) return halfSpend;            // rest refunded
+  if (halfSpend <= p.credit) return p.pay;              // bonus covers the rest
+  return p.pay + (halfSpend - p.credit);                // pay extra at half fare
+}
+function options(full) {
+  const { GA, HT } = prices();
+  const half = full / 2;
+  const opts = [
+    { id: "none", name: "No travelcard", cost: full, detail: "Full-fare tickets" },
+    { id: "ht", name: "Halbtax", cost: HT + half, detail: `${chf(HT)} card + ${chf(half)} in half-fare tickets` },
+    ...PLUS.map(p => {
+      const c = plusCost(half, p);
+      let detail = `${chf(HT)} Halbtax + ${chf(p.pay)} paid in`;
+      if (half <= p.pay) detail = `${chf(HT)} Halbtax + ${chf(half)} used, ${chf(p.pay - half)} refunded, bonus lost`;
+      else if (half > p.credit) detail += ` + ${chf(half - p.credit)} after credit runs out`;
+      else detail += `, ${chf(p.credit - half)} credit left over (bonus, expires)`;
+      return { id: p.name, name: p.name, cost: HT + c, detail };
+    }),
+    { id: "ga", name: "GA", cost: GA, detail: "All travel included" },
+  ];
+  return opts;
+}
+function bestNonGA(full) { return Math.min(...options(full).filter(o => o.id !== "ga").map(o => o.cost)); }
+function gaBreakEven() {
+  const { GA } = prices();
+  let lo = 0, hi = 40000;
+  if (bestNonGA(hi) < GA) return null;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; bestNonGA(m) >= GA ? (hi = m) : (lo = m); }
+  return hi;
+}
+
+/* ---------- rendering ---------- */
+const $ = id => document.getElementById(id);
+
+function renderTrips() {
+  const el = $("trips");
+  if (!state.trips.length) {
+    el.innerHTML = `<div class="empty">No trips yet. Add the journeys you make regularly, e.g. your commute.</div>`;
+    return;
+  }
+  el.innerHTML = state.trips.map((t, i) => `
+    <div class="trip" data-i="${i}">
+      <input class="trip-name" id="name-${i}" data-k="name" value="${esc(t.name)}" placeholder="Trip name" aria-label="Trip name">
+      <div class="trip-total" id="tot-${i}"></div>
+      <div class="trip-fields">
+        <label class="field"><span>CHF</span><input id="price-${i}" data-k="price" type="number" min="0" step="0.1" value="${t.price}" aria-label="Price one way"></label>
+        <label class="field"><input class="count" id="count-${i}" data-k="count" type="number" min="0" step="1" value="${t.count}" aria-label="How often"><span>×</span></label>
+        <label class="field"><select id="unit-${i}" data-k="unit" aria-label="Period">
+          ${Object.entries(UNITS).map(([k, v]) => `<option value="${k}"${k === t.unit ? " selected" : ""}>${v}</option>`).join("")}
+        </select></label>
+        <label class="check"><input type="checkbox" id="round-${i}" data-k="round"${t.round ? " checked" : ""}> Return trip</label>
+        <button class="del" data-del="${i}" aria-label="Remove ${esc(t.name)}">Remove</button>
+      </div>
+    </div>`).join("");
+}
+
+function renderTotals() {
+  state.trips.forEach((t, i) => {
+    const el = $("tot-" + i);
+    if (el) el.innerHTML = `${chf(tripFullFare(t))}<small>${Math.round(tripsPerYear(t))} rides / yr, full fare</small>`;
+  });
+}
+
+function renderResults() {
+  const full = state.trips.reduce((s, t) => s + tripFullFare(t), 0);
+  const rides = state.trips.reduce((s, t) => s + tripsPerYear(t), 0);
+  const opts = options(full).sort((a, b) => a.cost - b.cost);
+  const best = opts[0], second = opts[1];
+  const max = Math.max(...opts.map(o => o.cost), 1);
+
+  $("verdict").innerHTML = full === 0
+    ? `<div class="eyebrow">Recommendation</div><div class="pick">Add a trip</div><p class="why">Enter at least one trip with a price to see which travelcard fits.</p>`
+    : `<div class="eyebrow">${state.example ? "Recommendation for the example trips" : "Get this"}</div>
+       <div class="pick">${best.name}</div>
+       <div class="cost"><b>${chf(best.cost)}</b> per year · ${chf(best.cost / 12)} per month</div>
+       <p class="why">Saves <strong>${chf(second.cost - best.cost)}</strong> per year compared with ${second.name}${best.id !== "none" ? `, and <strong>${chf(full - best.cost)}</strong> compared with paying full fare` : ""}.</p>`;
+
+  $("ranking").innerHTML = opts.map((o, i) => `
+    <div class="opt${i === 0 && full > 0 ? " best" : ""}">
+      <div class="opt-name">${o.name}${i === 0 && full > 0 ? "<small>cheapest</small>" : ""}</div>
+      <div class="opt-cost">${chf(o.cost)}</div>
+      <div class="opt-bar"><i style="width:${(o.cost / max * 100).toFixed(1)}%"></i></div>
+      <div class="opt-detail">${o.detail}</div>
+    </div>`).join("");
+
+  const be = gaBreakEven();
+  const { GA } = prices();
+  const pct = be ? Math.min(100, full / be * 100) : 0;
+  $("facts").innerHTML = `
+    <div class="fact"><span>Rides per year</span><span>${Math.round(rides)}</span></div>
+    <div class="fact"><span>Full-fare value per year</span><span>${chf(full)}</span></div>
+    <div class="fact"><span>Full-fare value per month</span><span>${chf(full / 12)}</span></div>
+    ${be ? `
+    <div>
+      <div class="fact"><span>GA pays off from</span><span>${chf(be)} full fare / yr</span></div>
+      <div class="meter" role="img" aria-label="${Math.round(pct)}% of the GA break-even"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <div class="meter-label">${full >= be ? "You travel enough for the GA." : `${chf(be - full)} more full-fare travel per year (about ${chf((be - full) / 12)} a month) and the GA (${chf(GA)}) becomes the cheapest.`}</div>
+    </div>` : ""}`;
+
+  $("price-hint").textContent = state.fareMode === "half" ? "Enter the half-fare price of one way" : "Enter the full-fare price of one way";
+}
+
+function renderSettings() {
+  for (const id of ["fareMode"])
+    $(id).querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === state[id])));
+  $("away").value = state.away;
+  const p = prices();
+  $("pGA").value = p.GA;
+  $("pHT").value = p.HT;
+}
+
+function update() { renderTotals(); renderResults(); save(); }
+function renderAll() { renderTrips(); renderSettings(); update(); }
+
+/* ---------- events ---------- */
+$("trips").addEventListener("input", e => {
+  const row = e.target.closest(".trip"); const k = e.target.dataset.k;
+  if (!row || !k) return;
+  const t = state.trips[+row.dataset.i];
+  t[k] = e.target.type === "checkbox" ? e.target.checked : e.target.type === "number" ? e.target.value : e.target.value;
+  state.example = false;
+  update();
+});
+$("trips").addEventListener("click", e => {
+  const i = e.target.dataset.del; if (i == null) return;
+  state.trips.splice(+i, 1); state.example = false; renderAll();
+});
+$("add").addEventListener("click", () => {
+  state.trips.push({ name: "New trip", price: 20, count: 1, unit: "month", round: true });
+  state.example = false; renderAll();
+  const i = state.trips.length - 1; const n = $("name-" + i); n.focus(); n.select();
+});
+$("reset").addEventListener("click", () => { state.trips = structuredClone(EXAMPLE); state.example = true; renderAll(); });
+
+for (const id of ["fareMode"]) {
+  $(id).addEventListener("click", e => {
+    const v = e.target.dataset.v; if (!v) return;
+    state[id] = v;
+    renderAll();
+  });
+}
+$("away").addEventListener("input", e => { state.away = e.target.value; update(); });
+$("pGA").addEventListener("input", e => { state.pGA = e.target.value === "" ? null : +e.target.value; update(); });
+$("pHT").addEventListener("input", e => { state.pHT = e.target.value === "" ? null : +e.target.value; update(); });
+
+/* ---------- import / export ---------- */
+const FILE_FORMAT = "sbb-abo-calc";
+const ioMsg = s => { $("io-msg").textContent = s; };
+
+$("export").addEventListener("click", () => {
+  const { example, ...data } = state;
+  const blob = new Blob([JSON.stringify({ format: FILE_FORMAT, version: 1, ...data }, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `travelcard-trips-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  ioMsg(`Exported ${state.trips.length} trip${state.trips.length === 1 ? "" : "s"}.`);
+});
+$("import").addEventListener("click", () => $("importFile").click());
+$("importFile").addEventListener("change", async e => {
+  const file = e.target.files[0]; e.target.value = "";
+  if (!file) return;
+  try {
+    const d = JSON.parse(await file.text());
+    if (d?.format !== FILE_FORMAT || !Array.isArray(d.trips)) throw new Error("not an export from this calculator");
+    const num = (v, def) => (v === null || v === "" || isNaN(+v)) ? def : +v;
+    const pick = (v, allowed, def) => allowed.includes(String(v)) ? String(v) : def;
+    state = {
+      trips: d.trips.map(t => ({
+        name: String(t?.name ?? "Trip"),
+        price: num(t?.price, 0),
+        count: num(t?.count, 1),
+        unit: pick(t?.unit, Object.keys(UNITS), "month"),
+        round: !!t?.round,
+      })),
+      fareMode: pick(d.fareMode, ["full", "half"], "full"),
+      away: num(d.away, 6),
+      pGA: num(d.pGA, null),
+      pHT: num(d.pHT, null),
+      example: false,
+    };
+    renderAll();
+    ioMsg(`Imported ${state.trips.length} trip${state.trips.length === 1 ? "" : "s"} from ${file.name}.`);
+  } catch (err) {
+    ioMsg(`Could not import ${file.name}: ${err.message}`);
+  }
+});
+
+renderAll();
+</script>
