@@ -243,12 +243,39 @@ const EXAMPLE = [
 ];
 
 const KEY = "sbb-abo-calc-v1";
+const LIMITS = { trips: 200, name: 100, price: 10000, count: 1000, card: 100000, fileBytes: 1_000_000 };
+
+// turns untrusted data (import file or browser storage) into a valid state
+function sanitize(d) {
+  if (!d || typeof d !== "object" || !Array.isArray(d.trips)) return null;
+  const num = (v, min, max, def) => {
+    if (v === null || v === "" || typeof v === "boolean") return def;
+    const n = +v;
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  const pick = (v, allowed, def) => allowed.includes(String(v)) ? String(v) : def;
+  return {
+    trips: d.trips.slice(0, LIMITS.trips).map(t => ({
+      name: String(t?.name ?? "Trip").slice(0, LIMITS.name),
+      price: num(t?.price, 0, LIMITS.price, 0),
+      count: num(t?.count, 0, LIMITS.count, 1),
+      unit: pick(t?.unit, Object.keys(UNITS), "month"),
+      round: !!t?.round,
+    })),
+    fareMode: pick(d.fareMode, ["full", "half"], "full"),
+    away: num(d.away, 0, 52, 6),
+    pGA: num(d.pGA, 0, LIMITS.card, null),
+    pHT: num(d.pHT, 0, LIMITS.card, null),
+    example: d.example === true,
+  };
+}
+
 let state = load() || {
   trips: structuredClone(EXAMPLE), fareMode: "full", away: 6,
   pGA: null, pHT: null, example: true,
 };
 
-function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+function load() { try { return sanitize(JSON.parse(localStorage.getItem(KEY))); } catch { return null; } }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
 
 const chf = (n, dec = 0) => "CHF " + n.toLocaleString("de-CH", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -313,11 +340,11 @@ function renderTrips() {
   }
   el.innerHTML = state.trips.map((t, i) => `
     <div class="trip" data-i="${i}">
-      <input class="trip-name" id="name-${i}" data-k="name" value="${esc(t.name)}" placeholder="Trip name" aria-label="Trip name">
+      <input class="trip-name" id="name-${i}" data-k="name" value="${esc(t.name)}" maxlength="100" placeholder="Trip name" aria-label="Trip name">
       <div class="trip-total" id="tot-${i}"></div>
       <div class="trip-fields">
-        <label class="field"><span>CHF</span><input id="price-${i}" data-k="price" type="number" min="0" step="0.1" value="${t.price}" aria-label="Price one way"></label>
-        <label class="field"><input class="count" id="count-${i}" data-k="count" type="number" min="0" step="1" value="${t.count}" aria-label="How often"><span>×</span></label>
+        <label class="field"><span>CHF</span><input id="price-${i}" data-k="price" type="number" min="0" step="0.1" value="${esc(t.price)}" aria-label="Price one way"></label>
+        <label class="field"><input class="count" id="count-${i}" data-k="count" type="number" min="0" step="1" value="${esc(t.count)}" aria-label="How often"><span>×</span></label>
         <label class="field"><select id="unit-${i}" data-k="unit" aria-label="Period">
           ${Object.entries(UNITS).map(([k, v]) => `<option value="${k}"${k === t.unit ? " selected" : ""}>${v}</option>`).join("")}
         </select></label>
@@ -435,24 +462,11 @@ $("importFile").addEventListener("change", async e => {
   const file = e.target.files[0]; e.target.value = "";
   if (!file) return;
   try {
+    if (file.size > LIMITS.fileBytes) throw new Error("file is too large");
     const d = JSON.parse(await file.text());
-    if (d?.format !== FILE_FORMAT || !Array.isArray(d.trips)) throw new Error("not an export from this calculator");
-    const num = (v, def) => (v === null || v === "" || isNaN(+v)) ? def : +v;
-    const pick = (v, allowed, def) => allowed.includes(String(v)) ? String(v) : def;
-    state = {
-      trips: d.trips.map(t => ({
-        name: String(t?.name ?? "Trip"),
-        price: num(t?.price, 0),
-        count: num(t?.count, 1),
-        unit: pick(t?.unit, Object.keys(UNITS), "month"),
-        round: !!t?.round,
-      })),
-      fareMode: pick(d.fareMode, ["full", "half"], "full"),
-      away: num(d.away, 6),
-      pGA: num(d.pGA, null),
-      pHT: num(d.pHT, null),
-      example: false,
-    };
+    const clean = d?.format === FILE_FORMAT && sanitize(d);
+    if (!clean) throw new Error("not an export from this calculator");
+    state = { ...clean, example: false };
     renderAll();
     ioMsg(`Imported ${state.trips.length} trip${state.trips.length === 1 ? "" : "s"} from ${file.name}.`);
   } catch (err) {
