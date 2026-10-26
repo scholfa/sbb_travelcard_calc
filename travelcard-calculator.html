@@ -190,8 +190,8 @@ footer a { color: inherit; }
             <span class="hint">Holidays etc. Applies to weekly and two-weekly trips.</span>
           </div>
           <div class="prices">
-            <label class="field"><span>GA</span><input id="pGA" type="number" min="0" step="5"></label>
-            <label class="field"><span>Halbtax</span><input id="pHT" type="number" min="0" step="5"></label>
+            <label class="field"><span>GA</span><input id="pGA" type="number" min="0" max="100000" step="5"></label>
+            <label class="field"><span>Halbtax</span><input id="pHT" type="number" min="0" max="100000" step="5"></label>
           </div>
           <span class="hint">Adult prices. Overwrite them if you qualify for youth or senior rates.</span>
           <div class="setting-row">
@@ -245,14 +245,16 @@ const EXAMPLE = [
 const KEY = "sbb-abo-calc-v1";
 const LIMITS = { trips: 200, name: 100, price: 10000, count: 1000, card: 100000, fileBytes: 1_000_000 };
 
+// number within [min, max], or def for anything that isn't a finite number
+function num(v, min, max, def) {
+  if (v === null || v === "" || typeof v === "boolean") return def;
+  const n = +v;
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+}
+
 // turns untrusted data (import file or browser storage) into a valid state
 function sanitize(d) {
   if (!d || typeof d !== "object" || !Array.isArray(d.trips)) return null;
-  const num = (v, min, max, def) => {
-    if (v === null || v === "" || typeof v === "boolean") return def;
-    const n = +v;
-    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
-  };
   const pick = (v, allowed, def) => allowed.includes(String(v)) ? String(v) : def;
   return {
     trips: d.trips.slice(0, LIMITS.trips).map(t => ({
@@ -343,8 +345,8 @@ function renderTrips() {
       <input class="trip-name" id="name-${i}" data-k="name" value="${esc(t.name)}" maxlength="100" placeholder="Trip name" aria-label="Trip name">
       <div class="trip-total" id="tot-${i}"></div>
       <div class="trip-fields">
-        <label class="field"><span>CHF</span><input id="price-${i}" data-k="price" type="number" min="0" step="0.1" value="${esc(t.price)}" aria-label="Price one way"></label>
-        <label class="field"><input class="count" id="count-${i}" data-k="count" type="number" min="0" step="1" value="${esc(t.count)}" aria-label="How often"><span>×</span></label>
+        <label class="field"><span>CHF</span><input id="price-${i}" data-k="price" type="number" min="0" max="10000" step="0.1" value="${esc(t.price)}" aria-label="Price one way"></label>
+        <label class="field"><input class="count" id="count-${i}" data-k="count" type="number" min="0" max="1000" step="1" value="${esc(t.count)}" aria-label="How often"><span>×</span></label>
         <label class="field"><select id="unit-${i}" data-k="unit" aria-label="Period">
           ${Object.entries(UNITS).map(([k, v]) => `<option value="${k}"${k === t.unit ? " selected" : ""}>${v}</option>`).join("")}
         </select></label>
@@ -417,15 +419,23 @@ $("trips").addEventListener("input", e => {
   const row = e.target.closest(".trip"); const k = e.target.dataset.k;
   if (!row || !k) return;
   const t = state.trips[+row.dataset.i];
-  t[k] = e.target.type === "checkbox" ? e.target.checked : e.target.type === "number" ? e.target.value : e.target.value;
+  t[k] = e.target.type === "checkbox" ? e.target.checked
+    : e.target.type === "number" ? num(e.target.value, 0, LIMITS[k], 0)
+    : e.target.value.slice(0, LIMITS.name);
   state.example = false;
   update();
+});
+// once a field is left, show the value that is actually used
+$("trips").addEventListener("change", e => {
+  const row = e.target.closest(".trip"); const k = e.target.dataset.k;
+  if (row && e.target.type === "number") e.target.value = state.trips[+row.dataset.i][k];
 });
 $("trips").addEventListener("click", e => {
   const i = e.target.dataset.del; if (i == null) return;
   state.trips.splice(+i, 1); state.example = false; renderAll();
 });
 $("add").addEventListener("click", () => {
+  if (state.trips.length >= LIMITS.trips) return;
   state.trips.push({ name: "New trip", price: 20, count: 1, unit: "month", round: true });
   state.example = false; renderAll();
   const i = state.trips.length - 1; const n = $("name-" + i); n.focus(); n.select();
@@ -439,9 +449,10 @@ for (const id of ["fareMode"]) {
     renderAll();
   });
 }
-$("away").addEventListener("input", e => { state.away = e.target.value; update(); });
-$("pGA").addEventListener("input", e => { state.pGA = e.target.value === "" ? null : +e.target.value; update(); });
-$("pHT").addEventListener("input", e => { state.pHT = e.target.value === "" ? null : +e.target.value; update(); });
+$("away").addEventListener("input", e => { state.away = num(e.target.value, 0, 52, 0); update(); });
+$("pGA").addEventListener("input", e => { state.pGA = num(e.target.value, 0, LIMITS.card, null); update(); });
+$("pHT").addEventListener("input", e => { state.pHT = num(e.target.value, 0, LIMITS.card, null); update(); });
+for (const id of ["away", "pGA", "pHT"]) $(id).addEventListener("change", renderSettings);
 
 /* ---------- import / export ---------- */
 const FILE_FORMAT = "sbb-abo-calc";
